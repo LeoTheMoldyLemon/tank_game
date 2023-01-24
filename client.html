@@ -1,0 +1,382 @@
+<html>
+<script src="/socket.io/socket.io.js"></script>
+<head>
+<style>
+#canvas{
+border:1px solid black
+
+}
+</style>
+</head>
+
+<body onload="setup()"  onkeyup="keyUpEvent(event)" onkeydown="keyDownEvent(event)" height="100%" scroll="no" style="overflow: hidden">
+<p id="console" style="float:right"></p>
+<canvas onwheel="wheelEvent(event)" id="canvas" onmouseup="mouseUpEvent(event)" onmousedown="mouseDownEvent(event)" onmousemove="mouseMoveEvent(event)" width="1280px" height="720px"></canvas>
+
+<a href="/piss" target="_blank">Tutorial</a>
+	
+<canvas id="buffer" width="1280px" height="720px" display="none"></canvas>
+
+<img id="img"/>
+
+
+
+
+</body>
+
+
+<script>
+const console = document.getElementById("console") //loading debug console
+const canvas = document.getElementById("canvas") //loading display canvas
+const buffer = document.getElementById("buffer") //loading buffer canvas
+
+
+
+class graphics {
+    
+    constructor(canvas, buffer, images){
+        
+        this.canvas = document.getElementById(canvas)
+        this.ctx = this.canvas.getContext("2d")
+        this.buffer = document.getElementById(buffer)
+        this.buf = this.buffer.getContext("2d")
+        this.images=images
+        this.camera=[0,0,0]
+        
+        
+    }
+    
+    swapbuffer(){
+        this.ctx.clearRect(0, 0, this.buffer.width, this.buffer.height);
+        this.ctx.drawImage(this.buffer, 0, 0)
+        this.buf.clearRect(0, 0, this.buffer.width, this.buffer.height);
+        
+    }
+    
+    drawsprite(image, x, y, rot, scale){
+		
+        let nx = (x-this.camera[0]+this.canvas.width/(1.5**this.camera[2])/2)*(1.5**this.camera[2])
+        let ny = (y-this.camera[1]+this.canvas.height/(1.5**this.camera[2])/2)*(1.5**this.camera[2])
+		this.buf.translate(nx, ny)
+		this.buf.rotate(rot)
+        this.buf.drawImage(images[image], -images[image].width*scale/2*(1.5**this.camera[2]), -images[image].height*scale/2*(1.5**this.camera[2]), images[image].width*scale*(1.5**this.camera[2]), images[image].height*scale*(1.5**this.camera[2]))
+		this.buf.rotate(-rot)
+		this.buf.translate(-nx, -ny)
+		
+    }
+    drawstatus(image, x, y, scale){
+        this.buf.drawImage(images[image], x, y, images[image].width*scale, images[image].height*scale)
+    
+    
+    }
+    
+    
+}
+
+
+
+async function setup(){
+                                    //loading images used as sprite to be drawn onto the screen
+    socket = io()
+    socket.on("wallUpdate", (walls)=>{
+        walllist=walls
+    })
+    soundm = new Audio()
+    sourcem  = await document.createElement("source");
+    sourcem.src  = "/assets/music.mp3";
+    soundm.appendChild(sourcem)
+    soundm.loop=true
+    soundm.volume=0.2
+    soundm.play()
+    effect=0
+	colors=["blu","dblu","purp","red","green","yel","orang","pink"]
+	bullets=["bullet.png", "laser-bullet.png"]
+	
+    spectator=false
+    socket.on("spectator", (msg)=>{
+        spectator=true
+    })
+    statuss={}
+    let response = await fetch("filelist");
+    let files = await response.json();
+    images={}
+    files.forEach(file=>{
+        let image=new Image()
+        image.src="/assets/"+file
+        images[file]=image
+    })
+    document.body.appendChild(images["block.png"])
+    counter=0
+    graph = new graphics("canvas", "buffer", images)
+    ctx=canvas.getContext("2d")
+    buf=buffer.getContext("2d")
+	forw=false
+    back=false
+    left=false
+    righ=false
+    
+    socket.on("frameUpdate", (positions)=>{
+        
+        graph.camera[0]-=righ*10
+        graph.camera[0]+=left*10
+        graph.camera[1]-=back*10
+        graph.camera[1]+=forw*10
+        
+        
+        
+        
+        for(i=0; i<positions.tanks.length; i++){
+            graph.drawsprite(colors[positions.tanks[i][4]]+"-bot.png", positions.tanks[i][0], positions.tanks[i][1], -positions.tanks[i][2]-(Math.PI/2), 1)
+            graph.drawsprite(colors[positions.tanks[i][4]]+"-top.png",  positions.tanks[i][0], positions.tanks[i][1], -positions.tanks[i][3]-(Math.PI/2), 1)
+            if(positions.tanks[i][5]){
+                graph.drawsprite("shield-eff.png",  positions.tanks[i][0], positions.tanks[i][1], 0, 1)
+            }
+        }
+        for(i=0; i<positions.projectiles.length; i++){
+            graph.drawsprite(bullets[positions.projectiles[i][3]], positions.projectiles[i][0], positions.projectiles[i][1], -positions.projectiles[i][2]+(Math.PI/2), 2)
+        }
+        for(i=0; i<positions.packs.length; i++){
+            graph.drawsprite("crate.png", positions.packs[i][0], positions.packs[i][1], 0, 1)
+            graph.drawsprite(positions.packs[i][2]+".png", positions.packs[i][0], positions.packs[i][1], 0, 0.05)
+            
+        }
+        
+        
+        
+   
+        
+        
+        
+       
+        for(i=0; i<walllist.length; i++){
+            if(walllist[i][2]==20){
+                graph.drawsprite("horiwall.png", walllist[i][0], walllist[i][1], 0, 1)
+            }else{
+                graph.drawsprite("vertwall.png", walllist[i][0], walllist[i][1], 0, 1)
+            }
+        }
+        
+        if(statuss.time<statuss.lastshot){
+            graph.drawstatus("reload_bullet.png", canvas.width-images["reload_bullet.png"].width, canvas.height-images["reload_bullet.png"].height+(statuss.lastshot-statuss.time)/25, 1)
+        }else{
+            graph.drawstatus("reload_bullet.png", canvas.width-images["reload_bullet.png"].width, canvas.height-images["reload_bullet.png"].height, 1)
+        }
+        if(effect){
+            graph.drawstatus(effect+".png", canvas.width-images["reload_bullet.png"].width-images[effect+".png"].width/10, canvas.height-images[effect+".png"].height/10, 0.1)
+        
+        }
+        
+        
+        graph.swapbuffer()
+    })
+    
+    socket.on("statusUpdate", (stat)=>{
+        statuss=Object.assign({}, stat);
+       
+        if(statuss.shield!=0){
+            console.innerHTML="shield"
+            effect="shield"
+        }
+        if(statuss.laser!=0){
+            console.innerHTML="laser"
+            effect="laser"
+        }
+        if(statuss.shotgun!=0){
+            console.innerHTML="shotgun"
+            effect="shotgun"
+        }
+        if(statuss.invis!=0){
+            console.innerHTML="invis"
+            effect="invis"
+        }
+        if(statuss.reload!=0){
+            console.innerHTML="reload"
+            effect="reload"
+        }
+        if(statuss.speed!=0){
+            console.innerHTML="speed"
+            effect="speed"
+        }
+        if(statuss.revive!=0){
+            console.innerHTML="revive"
+            effect="revive"
+        }
+        
+        if(statuss.chill!=0){
+            console.innerHTML="chill"
+            effect="chill"
+        }
+        
+        if(statuss.revive==0 && statuss.chill==0 && statuss.speed==0 && statuss.reload==0 && statuss.invis==0 && statuss.shotgun==0 && statuss.laser==0 && statuss.shield==0){
+            console.innerHTML="nista"
+            effect=0
+        }
+    })
+    
+    
+    
+    
+    
+    
+    socket.on("positionUpdate", (pos)=>{
+        if(effect=="invis"){
+            graph.drawsprite(colors[pos[4]]+"-bot.png", pos[0], pos[1], -pos[2]-(Math.PI/2), 1)
+            graph.drawsprite(colors[pos[4]]+"-top.png",  pos[0], pos[1], -pos[3]-(Math.PI/2), 1)
+            
+        }
+        if(!spectator){
+            graph.camera[0]=pos[0]
+            graph.camera[1]=pos[1]
+        }
+        
+    
+    })
+    
+    socket.on("debugUpdate", (poss)=>{
+        for (let i =0; i<poss.length; i++){
+            let nx = (poss[i][0]-graph.camera[0]+graph.canvas.width/(1.5**graph.camera[2])/2)*(1.5**graph.camera[2])
+            let ny = (poss[i][1]-graph.camera[1]+graph.canvas.height/(1.5**graph.camera[2])/2)*(1.5**graph.camera[2])
+            buf.beginPath();
+            buf.arc(nx, ny, 3, 0, 2 * Math.PI);
+            buf.fill();
+                        
+        }
+    })
+    
+    socket.on("playSound", (src)=>{
+        let sound = new Audio()
+        let source  = document.createElement("source");
+        source.src  = "/assets/"+src+".wav";
+        sound.appendChild(source)
+        sound.play()
+    })
+    
+    
+}
+
+
+
+
+
+
+
+async function wheelEvent(event){
+    graph.camera[2]-=event.deltaY/1000.0
+}
+
+async function keyDownEvent(event){
+    soundm.play()
+    if(spectator){
+        switch(event.code){
+            case "KeyW":
+                forw=false
+            break
+            case "KeyS":
+                back=false
+            break
+            case "KeyA":
+                left=false
+            break
+            case "KeyD":
+                righ=false
+            break
+            
+        }
+    }else{
+        socket.emit("pressedKey", event.code)
+    }
+}
+
+async function keyUpEvent(event){
+    if(spectator){
+        switch(event.code){
+            case "KeyW":
+                forw=true
+            break
+            case "KeyS":
+                back=true
+            break
+            case "KeyA":
+                left=true
+            break
+            case "KeyD":
+                righ=true
+            break
+            
+        }
+    }else{
+        socket.emit("releasedKey", event.code)
+    }
+}
+
+async function mouseMoveEvent(event){
+    if(spectator){
+    
+    }else{
+        let x=(event.x-648)
+        let y=(event.y-368)
+        if(y==0){y++}
+        let rot=Math.acos(x/Math.sqrt(x**2+y**2))*Math.sign(y)%(2*Math.PI)
+        if(rot<0){
+            rot+=2*Math.PI
+        }
+        rot=Math.abs(rot-(2*Math.PI))
+       
+        
+        socket.emit("movedMouse", rot)
+    }
+}
+
+async function mouseDownEvent(event){
+    soundm.play()
+    if(spectator){
+    
+    }else{
+        socket.emit("pressedMouse", "")
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</script>
+
+
+</html>
+

@@ -1,0 +1,19 @@
+{
+  "name": "schlorp",
+  "version": "1.0.0",
+  "description": "A top-down tank arcade game",
+  "main": "server.js",
+  "scripts": {
+    "test": "npm start",
+    "start": "node server.js"
+  },
+  "author": "Petar Knežević, Mara Golob, Matej Tadić, Leonarda Lovrić, Nika Maras, Leonardo Šimunović",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.3",
+    "fs": "^0.0.1-security",
+    "http": "^0.0.1-security",
+    "node": "^17.7.1",
+    "socket.io": "^4.4.1"
+  }
+}
