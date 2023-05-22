@@ -11,8 +11,8 @@ app.get('/', async (req, res) => {
         res.end(data)
     })
 })
-app.get('/piss', async (req, res) => {
-    fs.readFile("piss.html", function(er, data){
+app.get('/instructions', async (req, res) => {
+    fs.readFile("instructions.html", function(er, data){
         res.end(data)
     })
 })
